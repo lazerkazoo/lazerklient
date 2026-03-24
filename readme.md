@@ -7,6 +7,14 @@
 # how to run
 - run `python api_client.py` or just run the "api_client" file
 # how to use
-- add api url ![](images/1.png)
-- add params (if wanted) ![](images/2.png)
-- send request ![](images/send.png)
+- add api url
+
+![](images/1.png)
+
+- add params (if wanted)
+
+![](images/2.png)
+
+- send request
+
+![](images/send.png)
