@@ -1,32 +1,51 @@
+import json
 import urllib.parse
 from subprocess import check_output
 
 import gi
 import pyperclip
-from gi.repository import Adw, Gio, Gtk
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+gi.require_version("GtkSource", "5")
+
+from gi.repository import Adw, Gtk, GtkSource
 
 
 class APIClientWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="API Client")
-        self.set_default_size(700, 550)
+        self.set_default_size(1000, 700)
 
         self.params = []
+        self.raw_response = ""
+        self.pretty_response = ""
 
-        # main layout
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        main_box.set_margin_top(12)
-        main_box.set_margin_bottom(12)
-        main_box.set_margin_start(12)
-        main_box.set_margin_end(12)
-        self.set_content(main_box)
+        # MAIN SPLIT VIEW (resizable)
+        paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
+        self.set_content(paned)
 
-        # url
+        # LEFT BOX (controls)
+        left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        left_box.set_margin_top(12)
+        left_box.set_margin_bottom(12)
+        left_box.set_margin_start(12)
+        left_box.set_margin_end(12)
+
+        # RIGHT BOX (response)
+        right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        right_box.set_margin_top(12)
+        right_box.set_margin_bottom(12)
+        right_box.set_margin_start(12)
+        right_box.set_margin_end(12)
+
+        paned.set_start_child(left_box)
+        paned.set_end_child(right_box)
+        paned.set_position(350)
+
+        # URL INPUT
         url_box = Gtk.Box(spacing=6)
-        main_box.append(url_box)
+        left_box.append(url_box)
 
         url_label = Gtk.Label(label="API URL:")
         url_label.set_xalign(0)
@@ -36,21 +55,21 @@ class APIClientWindow(Adw.ApplicationWindow):
         self.url_entry.set_hexpand(True)
         url_box.append(self.url_entry)
 
-        # parameters
+        # PARAMETERS
         params_group = Adw.PreferencesGroup(title="Parameters")
-        main_box.append(params_group)
+        left_box.append(params_group)
 
         self.params_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         params_group.add(self.params_box)
 
         add_btn = Gtk.Button(label="Add Parameter")
         add_btn.connect("clicked", self.add_param)
-        main_box.append(add_btn)
+        left_box.append(add_btn)
 
-        # buttons
+        # BUTTONS
         btn_box = Gtk.Box(spacing=6)
         btn_box.set_halign(Gtk.Align.CENTER)
-        main_box.append(btn_box)
+        left_box.append(btn_box)
 
         send_btn = Gtk.Button(label="Send Request")
         send_btn.add_css_class("suggested-action")
@@ -61,14 +80,52 @@ class APIClientWindow(Adw.ApplicationWindow):
         curl_btn.connect("clicked", self.copy_curl)
         btn_box.append(curl_btn)
 
-        # response
-        self.response_view = Gtk.TextView()
-        self.response_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        # RESPONSE HEADER
+        right_box.append(Gtk.Label(label="Response"))
+
+        header_box = Gtk.Box(spacing=6)
+
+        self.pretty_btn = Gtk.ToggleButton(label="Pretty")
+        self.raw_btn = Gtk.ToggleButton(label="Raw")
+
+        self.pretty_btn.set_active(True)
+
+        def toggle_mode(btn):
+            if btn == self.pretty_btn:
+                self.raw_btn.set_active(False)
+            else:
+                self.pretty_btn.set_active(False)
+            self.update_response_view()
+
+        self.pretty_btn.connect("toggled", toggle_mode)
+        self.raw_btn.connect("toggled", toggle_mode)
+
+        header_box.append(self.pretty_btn)
+        header_box.append(self.raw_btn)
+        right_box.append(header_box)
+
+        # SOURCE VIEW (syntax highlighting)
+        self.response_buffer = GtkSource.Buffer()
+        self.response_view = GtkSource.View.new_with_buffer(self.response_buffer)
+
         self.response_view.set_vexpand(True)
+        self.response_view.set_hexpand(True)
+        self.response_view.set_monospace(True)
+        self.response_view.set_show_line_numbers(True)
+
+        # JSON syntax highlighting
+        lm = GtkSource.LanguageManager()
+        self.response_buffer.set_language(lm.get_language("json"))
+
+        style_manager = GtkSource.StyleSchemeManager()
+        self.response_buffer.set_style_scheme(style_manager.get_scheme("classic"))
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_child(self.response_view)
-        main_box.append(scroll)
+        scroll.set_vexpand(True)
+        scroll.set_hexpand(True)
+
+        right_box.append(scroll)
 
     def add_param(self, widget=None, key="", value=""):
         row = Gtk.Box(spacing=6)
@@ -123,10 +180,28 @@ class APIClientWindow(Adw.ApplicationWindow):
 
         try:
             response = check_output(["curl", "-s", "-X", "GET", full_url])
-            buffer = self.response_view.get_buffer()
-            buffer.set_text(response.decode())
+            text = response.decode()
+
+            self.raw_response = text
+
+            try:
+                parsed = json.loads(text)
+                self.pretty_response = json.dumps(parsed, indent=2)
+            except Exception:
+                self.pretty_response = text
+
+            self.update_response_view()
+
         except Exception as e:
             self.show_message(str(e), error=True)
+
+    def update_response_view(self):
+        if self.pretty_btn.get_active():
+            text = self.pretty_response
+        else:
+            text = self.raw_response
+
+        self.response_buffer.set_text(text)
 
     def copy_curl(self, widget):
         url = self.url_entry.get_text().strip()
