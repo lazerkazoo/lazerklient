@@ -99,11 +99,11 @@ class APIClientWindow(Adw.ApplicationWindow):
         style_manager = GtkSource.StyleSchemeManager()
         self.response_buffer.set_style_scheme(
             style_manager.get_scheme(
-                "adwaita-dark"
+                "classic-dark"
                 if Gtk.Settings.get_default().get_property(
                     "gtk-application-prefer-dark-theme"
                 )
-                else "adwaita"
+                else "classic"
             )
         )
 
