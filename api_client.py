@@ -3,13 +3,13 @@ import urllib.parse
 from subprocess import check_output
 
 import gi
-import pyperclip
+import pyperclip  # ty:ignore[unresolved-import]
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("GtkSource", "5")
 
-from gi.repository import Adw, Gtk, GtkSource
+from gi.repository import Adw, Gtk, GtkSource  # ty:ignore[unresolved-import]
 
 
 class APIClientWindow(Adw.ApplicationWindow):
@@ -18,7 +18,6 @@ class APIClientWindow(Adw.ApplicationWindow):
         self.set_default_size(1000, 700)
 
         self.params = []
-        self.raw_response = ""
         self.pretty_response = ""
 
         # MAIN SPLIT VIEW (resizable)
@@ -47,11 +46,8 @@ class APIClientWindow(Adw.ApplicationWindow):
         url_box = Gtk.Box(spacing=6)
         left_box.append(url_box)
 
-        url_label = Gtk.Label(label="API URL:")
-        url_label.set_xalign(0)
-        url_box.append(url_label)
-
         self.url_entry = Gtk.Entry()
+        self.url_entry.set_placeholder_text("API URL")
         self.url_entry.set_hexpand(True)
         url_box.append(self.url_entry)
 
@@ -85,23 +81,6 @@ class APIClientWindow(Adw.ApplicationWindow):
 
         header_box = Gtk.Box(spacing=6)
 
-        self.pretty_btn = Gtk.ToggleButton(label="Pretty")
-        self.raw_btn = Gtk.ToggleButton(label="Raw")
-
-        self.pretty_btn.set_active(True)
-
-        def toggle_mode(btn):
-            if btn == self.pretty_btn:
-                self.raw_btn.set_active(False)
-            else:
-                self.pretty_btn.set_active(False)
-            self.update_response_view()
-
-        self.pretty_btn.connect("toggled", toggle_mode)
-        self.raw_btn.connect("toggled", toggle_mode)
-
-        header_box.append(self.pretty_btn)
-        header_box.append(self.raw_btn)
         right_box.append(header_box)
 
         # SOURCE VIEW (syntax highlighting)
@@ -118,7 +97,15 @@ class APIClientWindow(Adw.ApplicationWindow):
         self.response_buffer.set_language(lm.get_language("json"))
 
         style_manager = GtkSource.StyleSchemeManager()
-        self.response_buffer.set_style_scheme(style_manager.get_scheme("classic"))
+        self.response_buffer.set_style_scheme(
+            style_manager.get_scheme(
+                "adwaita-dark"
+                if Gtk.Settings.get_default().get_property(
+                    "gtk-application-prefer-dark-theme"
+                )
+                else "adwaita"
+            )
+        )
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_child(self.response_view)
@@ -182,26 +169,16 @@ class APIClientWindow(Adw.ApplicationWindow):
             response = check_output(["curl", "-s", "-X", "GET", full_url])
             text = response.decode()
 
-            self.raw_response = text
-
             try:
                 parsed = json.loads(text)
                 self.pretty_response = json.dumps(parsed, indent=2)
             except Exception:
                 self.pretty_response = text
 
-            self.update_response_view()
+            self.response_buffer.set_text(self.pretty_response)
 
         except Exception as e:
             self.show_message(str(e), error=True)
-
-    def update_response_view(self):
-        if self.pretty_btn.get_active():
-            text = self.pretty_response
-        else:
-            text = self.raw_response
-
-        self.response_buffer.set_text(text)
 
     def copy_curl(self, widget):
         url = self.url_entry.get_text().strip()
@@ -213,7 +190,7 @@ class APIClientWindow(Adw.ApplicationWindow):
         query_string = urllib.parse.urlencode(params)
         full_url = f"{url}?{query_string}" if query_string else url
 
-        curl_cmd = f'curl -s -X GET "{full_url}"'
+        curl_cmd = f'curl -X GET "{full_url}"'
         pyperclip.copy(curl_cmd)
 
         self.show_message("cURL command copied to clipboard!")
