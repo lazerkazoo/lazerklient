@@ -40,7 +40,7 @@ class APIClientWindow(Adw.ApplicationWindow):
 
         paned.set_start_child(left_box)
         paned.set_end_child(right_box)
-        paned.set_position(350)
+        paned.set_position(425)
 
         # URL INPUT
         url_box = Gtk.Box(spacing=6)
@@ -49,6 +49,7 @@ class APIClientWindow(Adw.ApplicationWindow):
         self.url_entry = Gtk.Entry()
         self.url_entry.set_placeholder_text("API URL")
         self.url_entry.set_hexpand(True)
+        self.url_entry.connect("activate", self.send_request)
         url_box.append(self.url_entry)
 
         # PARAMETERS
@@ -71,6 +72,10 @@ class APIClientWindow(Adw.ApplicationWindow):
         send_btn.add_css_class("suggested-action")
         send_btn.connect("clicked", self.send_request)
         btn_box.append(send_btn)
+
+        url_btn = Gtk.Button(label="Copy URL")
+        url_btn.connect("clicked", self.copy_url)
+        btn_box.append(url_btn)
 
         curl_btn = Gtk.Button(label="Copy as cURL")
         curl_btn.connect("clicked", self.copy_curl)
@@ -179,6 +184,17 @@ class APIClientWindow(Adw.ApplicationWindow):
 
         except Exception as e:
             self.show_message(str(e), error=True)
+
+    def copy_url(self, widget):
+        url = self.url_entry.get_text().strip()
+        if not url:
+            self.show_message(text="Please enter a URL", error=True)
+            return
+
+        params = self.get_params_dict()
+        query_str = urllib.parse.urlencode(query=params)
+        pyperclip.copy(f"{url}?{query_str}" if query_str else url)
+        self.show_message("URL copied to clipboard!")
 
     def copy_curl(self, widget):
         url = self.url_entry.get_text().strip()
